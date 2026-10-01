@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+<symbol id="back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"/></symbol>
+<symbol id="forward" viewBox="0 0 24 24"><path d="m12 4-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0-7.74 6H2l3.5 3.5L9 10H6.31A6 6 0 1 1 12 18a6 6 0 0 1-4.24-1.76l-1.42 1.42A8 8 0 1 0 12 4z"/></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="m12 3-9 7v10h6v-6h6v6h6V10z"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="m12 17.27-6.18 3.73 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63L22 9.24l-5.46 4.73 1.64 7.03z"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><path d="m20.3 18.9-4.2-4.2a7 7 0 1 0-1.4 1.4l4.2 4.2zM5 10a5 5 0 1 1 10 0A5 5 0 0 1 5 10z"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="m6.4 5 6 6 6-6L20 6.6l-6 6 6 6L18.4 20l-6-6-6 6L4.9 18.6l6-6-6-6z"/></symbol>
+<symbol id="add" viewBox="0 0 24 24"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></symbol>
+<symbol id="download" viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-16h-2v8H7l4 4 4-4h-3z"/></symbol>
+<symbol id="extensions" viewBox="0 0 24 24"><path d="M20 12.5V9h-3.5a3.5 3.5 0 1 0-7 0H6v4h3.5a3.5 3.5 0 1 0 7 0H20z"/></symbol>
+<symbol id="person" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></symbol>
+<symbol id="security" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5z"/></symbol>
+<symbol id="bookmark" viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2z"/></symbol>
+<symbol id="history" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-8.48 6H2l3.5 3.5L9 9H6.58A7 7 0 1 1 6 14H4a9 9 0 1 0 9-11zm-1 5v5l4 2 .8-1.6-2.8-1.4V8z"/></symbol>
+<symbol id="settings" viewBox="0 0 24 24"><path d="m19.43 12.98.05-.98-.05-.98 2.11-1.65-2-3.46-2.49 1a7.4 7.4 0 0 0-1.69-.98L15 3h-4l-.38 2.93c-.61.25-1.18.58-1.69.98l-2.49-1-2 3.46 2.11 1.65-.05.98.05.98-2.11 1.65 2 3.46 2.49-1c.51.4 1.08.73 1.69.98L11 21h4l.38-2.93c.61-.25 1.18-.58 1.69-.98l2.49 1 2-3.46zM13 15.5A3.5 3.5 0 1 1 13 8a3.5 3.5 0 0 1 0 7.5z"/></symbol>
+<symbol id="tabsearch" viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 0 4.04 11.59L19 20l1-1-4.46-4.46A6.5 6.5 0 0 0 10.5 4zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z"/></symbol>
+<symbol id="incognito" viewBox="0 0 24 24"><path d="M12 4 8 4 5 9v2h2.1a5 5 0 0 0 9.8 0H19V9l-3-5zm-3 7a3 3 0 0 1 6 0H9z"/></symbol>
+<symbol id="print" viewBox="0 0 24 24"><path d="M18 3H6v4h12V3zm1 6H5a3 3 0 0 0-3 3v4h4v5h12v-5h4v-4a3 3 0 0 0-3-3zm-3 10H8v-5h8v5zm3-4h-2v-2h2v2z"/></symbol>
+<symbol id="qr" viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm6 0h2v2h-2V5zm4-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm9-2h2v2h-2v-2zm4 0h3v2h-3v-2zm-4 4h2v4h-2v-4zm4 0h3v4h-3v-4z"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></symbol>
+<symbol id="arrowright" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7 1.4 1.4L18.8 12l-8.4-8.4z"/></symbol>
+</svg>

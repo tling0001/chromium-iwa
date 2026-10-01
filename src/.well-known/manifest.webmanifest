@@ -1,0 +1,41 @@
+{
+  "id": "/",
+  "scope": "/",
+  "start_url": "/",
+  "name": "Chromium",
+  "short_name": "Chromium",
+  "description": "Chromium-style borderless IWA browser shell using Controlled Frame.",
+  "version": "1.1.0",
+  "update_manifest_url": "",
+  "display": "standalone",
+  "display_override": [
+    "unframed",
+    "borderless",
+    "standalone"
+  ],
+  "theme_color": "#202124",
+  "background_color": "#202124",
+  "permissions_policy": {
+    "window-management": [
+      "self"
+    ],
+    "controlled-frame": [
+      "self"
+    ],
+    "fullscreen": [
+      "*"
+    ],
+    "cross-origin-isolated": [
+      "self"
+    ]
+  },
+  "isolated_storage": true,
+  "icons": [
+    {
+      "src": "/icon.png",
+      "type": "image/png",
+      "sizes": "400x400",
+      "purpose": "any"
+    }
+  ]
+}
