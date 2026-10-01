@@ -5,7 +5,7 @@
   "name": "Chromium",
   "short_name": "Chromium",
   "description": "Chromium-style borderless IWA browser shell using Controlled Frame.",
-  "version": "1.1.0",
+  "version": "1.1.1.1",
   "update_manifest_url": "",
   "display": "standalone",
   "display_override": [
