@@ -57,6 +57,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          TAG="v${VERSION}"
+          TAG="${VERSION}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Chromium IWA ${VERSION}" --generate-notes
           gh release upload "$TAG" chromium.swbn update_manifest.json --clobber
