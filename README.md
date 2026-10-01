@@ -19,3 +19,6 @@ Includes:
 - everyday Chromium keyboard shortcuts
 
 Privileged Chrome surfaces cannot be directly embedded by an IWA; the shell recreates their visible UI while Controlled Frame renders web content.
+
+deno run -A npm:wbn/wbn --dir chromium-iwa/src -o unsigned.wbn
+deno run -A npm:wbn-sign/wbn-sign -i unsigned.wbn -k chromium_private_key.pem -o chromium.swbn
