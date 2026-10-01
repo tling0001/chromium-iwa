@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+process.chdir(root);
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(pkg.version)) throw new Error(`Invalid package.json version: ${pkg.version}`);
+spawnSync(process.execPath, ['scripts/sync-version.mjs'], {stdio:'inherit', env:process.env});
+if (!fs.existsSync('chromium_private_key.pem')) throw new Error('chromium_private_key.pem is required for a signed IWA build. Run npm run generate-key once, or provide the persistent GitHub secret IWA_PRIVATE_KEY.');
+const run = (cmd,args) => { const r=spawnSync(cmd,args,{stdio:'inherit',env:process.env,shell:false}); if(r.status!==0) process.exit(r.status ?? 1); };
+run('npx',['--yes','wbn','--dir','src','-o','unsigned.wbn']);
+run('npx',['--yes','wbn-sign','sign','unsigned.wbn','chromium_private_key.pem','-o','chromium.swbn']);
+console.log(`Built chromium.swbn for ${pkg.version}`);

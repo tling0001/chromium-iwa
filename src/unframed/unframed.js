@@ -1,46 +1,228 @@
-const HOME="https://www.google.com/";const SEARCH="https://www.google.com/search?q=";
-const S={tabs:[],active:0,next:1,bookmarks:JSON.parse(localStorage.getItem("chromium-bookmarks")||"[]"),history:JSON.parse(localStorage.getItem("chromium-history")||"[]"),downloads:JSON.parse(localStorage.getItem("chromium-downloads")||"[]")};
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],E=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const I=n=>`<svg><use href="/assets/icons.svg#${n}"/></svg>`;const save=(k,v)=>localStorage.setItem("chromium-"+k,JSON.stringify(v));
-function norm(v){v=v.trim();if(!v)return HOME;if(/^[a-z][a-z0-9+.-]*:/i.test(v))return v;if(v.includes(".")&&!v.includes(" "))return"https://"+v;return SEARCH+encodeURIComponent(v)}
-function domain(u){try{return new URL(u).hostname}catch{return""}}function cur(){return S.tabs[S.active]}
-function makeTab(url=HOME){const t={id:S.next++,url,title:"New Tab",frame:null,loading:false};S.tabs.push(t);S.active=S.tabs.length-1;renderTabs();mount(t)}
-function mount(t){$$(".frame").forEach(x=>x.classList.remove("active"));const f=document.createElement("controlledframe");f.className="frame active";f.partition="persist:chromium";f.setAttribute("allowfullscreen","");f.src=t.url;
-f.addEventListener("loadstart",()=>{t.loading=true;update()});f.addEventListener("loadcommit",()=>sync(t,f));f.addEventListener("loadstop",()=>sync(t,f));f.addEventListener("loadabort",()=>{t.loading=false;update()});f.addEventListener("newwindow",e=>{e.preventDefault();makeTab(e.targetUrl||HOME)});f.addEventListener("permissionrequest",e=>permission(t,e));$("#frames").appendChild(f);t.frame=f;sync(t,f)}
-async function sync(t,f){t.url=f.src||t.url;t.loading=false;try{let r=await f.executeScript({code:"document.title||location.hostname"});t.title=(Array.isArray(r)?r[0]:r)||domain(t.url)||"New Tab"}catch{t.title=domain(t.url)||"New Tab"}if(/^https?:/.test(t.url)&&domain(t.url)){if(!S.history[0]||S.history[0].url!==t.url){S.history.unshift({url:t.url,title:t.title,time:Date.now()});S.history=S.history.slice(0,500);save("history",S.history)}}renderTabs();update()}
-function renderTabs(){const b=$("#tabs");b.innerHTML="";S.tabs.forEach((t,i)=>{const d=document.createElement("div");d.className="tab"+(i===S.active?" active":"");d.innerHTML=`<span class="favicon">${domain(t.url)?`<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain(t.url))}&sz=32">`:"●"}</span><span class="title">${E(t.title)}</span><button class="tabclose">${I("close")}</button>`;d.onclick=e=>{if(!e.target.closest(".tabclose"))activate(i)};d.querySelector(".tabclose").onclick=e=>{e.stopPropagation();closeTab(i)};d.oncontextmenu=e=>{e.preventDefault();tabContext(i,e.clientX,e.clientY)};b.appendChild(d)})}
-function activate(i){S.active=i;$$(".frame").forEach((x,n)=>x.classList.toggle("active",n===i));renderTabs();update();closePopups();$("#addr").blur()}
-function closeTab(i){if(S.tabs.length===1)return cur().frame.reload();S.tabs[i].frame?.remove();S.tabs.splice(i,1);S.active=Math.max(0,Math.min(S.active,S.tabs.length-1));activate(S.active)}
-function update(){const t=cur();if(!t)return;$("#addr").value=t.url;$("#reload").innerHTML=I(t.loading?"close":"refresh");$("#star").classList.toggle("saved",S.bookmarks.some(b=>b.url===t.url));$("#back").disabled=false;$("#forward").disabled=false}
-function nav(v){const u=norm(v);cur().url=u;cur().frame.src=u;$("#addr").value=u;$("#suggestions").classList.remove("open")}
-async function go(m){try{await cur().frame[m]()}catch{}}
-function closePopups(){["menu","ctx","bubble","suggestions"].forEach(x=>$("#"+x).classList.remove("open"))}
-function mi(label,ic,fn,key=""){const b=document.createElement("button");b.className="mi";b.innerHTML=`${I(ic)}<span>${E(label)}</span>${key?`<span class="shortcut">${E(key)}</span>`:""}`;b.onclick=()=>{fn?.();closePopups()};return b}
-function sep(){const d=document.createElement("div");d.className="sep";return d}
-function showMenu(){
- const p=$("#menu"); p.innerHTML="";
- p.append(mi("New tab","add",()=>makeTab(),"Ctrl+T"),mi("New window","browser_tools",()=>window.open("/unframed/window.html","_blank"),"Ctrl+N"),mi("New Incognito window","incognito",()=>window.open("/unframed/window.html?incognito=1","_blank"),"Ctrl+Shift+N"));
- p.append(sep(),mi("History","history",history,"Ctrl+H"),mi("Downloads","download",downloads,"Ctrl+J"),mi("Bookmarks and lists","bookmark",bookmarks,"Ctrl+Shift+O"));
- p.append(sep(),mi("Find…","search",find,"Ctrl+F"),mi("Print…","print",printPage,"Ctrl+P"),mi("Create QR code for this page","qr",()=>info("QR code",cur().url)),mi("Save page as…","download",savePage,"Ctrl+S"));
- p.append(sep(),mi("More tools","settings",moreTools),mi("Settings","settings",settings),mi("Help","search",()=>info("Help","Everyday shortcuts: Ctrl+L address bar · Ctrl+T new tab · Ctrl+W close · Ctrl+Shift+T reopen · Ctrl+D bookmark · Ctrl+F find · Ctrl+J downloads · Ctrl+H history · Ctrl+P print")),mi("About Chromium","security",()=>info("About Chromium","Chromium IWA\n\nA borderless IWA shell using Controlled Frame for website content.")));
- p.classList.add("open");
+const HOME = 'https://www.google.com/';
+const SEARCH = 'https://www.google.com/search?q=';
+const STORAGE = 'chromium-iwa-v3-';
+const initialParams = new URLSearchParams(location.search);
+const initialUrl = initialParams.get('url') ? decodeURIComponent(initialParams.get('url')) : HOME;
+const state = {
+  tabs: [], active: 0, nextId: 1,
+  incognito: initialParams.get('incognito') === '1',
+  closed: JSON.parse(localStorage.getItem(STORAGE+'closed') || '[]'),
+  bookmarks: JSON.parse(localStorage.getItem(STORAGE+'bookmarks') || '[]'),
+  history: JSON.parse(localStorage.getItem(STORAGE+'history') || '[]'),
+  downloads: JSON.parse(localStorage.getItem(STORAGE+'downloads') || '[]'),
+  omniboxIndex: -1,
+  menuPage: 'main',
+  windowMaximized: false,
+};
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const icon = n => `<svg aria-hidden="true"><use href="/assets/icons.svg#${n}"></use></svg>`;
+const persist = (k,v) => localStorage.setItem(STORAGE+k, JSON.stringify(v));
+const current = () => state.tabs[state.active];
+function domain(u){try{return new URL(u).hostname}catch{return ''}}
+function origin(u){try{return new URL(u).origin}catch{return ''}}
+function normalize(value){
+  const v=String(value||'').trim();
+  if(!v) return HOME;
+  if(/^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
+  if(/^[\w.-]+\.[a-z]{2,}(?:[/:?#].*)?$/i.test(v)) return 'https://'+v;
+  return SEARCH+encodeURIComponent(v);
 }
-function moreTools(){const p=$("#menu");p.innerHTML="";p.append(mi("Extensions","extensions",extensions),mi("Clear browsing data…","settings",clearData),mi("Task manager","search",()=>info("Task manager","Native Chromium task/process metrics require privileged browser APIs.")),sep(),mi("Developer tools","settings",()=>info("Developer tools","DevTools is a privileged Chromium surface and is not embeddable in an IWA.")));p.classList.add("open")}
-function tabContext(i,x,y){const p=$("#ctx"),t=S.tabs[i];p.innerHTML="";p.append(mi("New tab","add",()=>makeTab()),mi("Reload","refresh",()=>t.frame?.reload()),mi("Duplicate","copy",()=>makeTab(t.url)),mi(t.pinned?"Unpin tab":"Pin tab","bookmark",()=>t.pinned=!t.pinned),mi(t.muted?"Unmute site":"Mute site","security",()=>t.muted=!t.muted),sep(),mi("Move tab to new window","browser_tools",()=>window.open("/unframed/window.html?url="+encodeURIComponent(t.url),"_blank")),mi("Close tab","close",()=>closeTab(i),"Ctrl+W"),mi("Close other tabs","close",()=>{const keep=S.tabs[i];S.tabs.forEach(x=>{if(x!==keep)x.frame?.remove()});S.tabs=[keep];S.active=0;renderTabs();update()}),mi("Reopen closed tab","history",()=>makeTab(S.history.find(x=>x.closed)?.url||HOME)));p.style.left=Math.min(innerWidth-260,Math.max(5,x))+"px";p.style.top=Math.min(innerHeight-360,Math.max(40,y))+"px";p.classList.add("open")}
-function suggestions(){const q=$("#addr").value.trim().toLowerCase();if(!q)return $("#suggestions").classList.remove("open");let a=[],seen=new Set();const add=(text,url,ic)=>{if(!seen.has(url)){seen.add(url);a.push({text,url,ic})}};S.bookmarks.filter(x=>(x.title+" "+x.url).toLowerCase().includes(q)).slice(0,4).forEach(x=>add(x.title,x.url,"bookmark"));S.history.filter(x=>(x.title+" "+x.url).toLowerCase().includes(q)).slice(0,5).forEach(x=>add(x.title,x.url,"history"));add($("#addr").value,norm($("#addr").value),"search");$("#suggestions").innerHTML=a.slice(0,8).map(x=>`<div class="sug" data-u="${E(x.url)}">${I(x.ic)}<span class="sugmain">${E(x.text)}</span><span class="sugsub">${E(x.url)}</span></div>`).join("");$$(".sug").forEach(x=>x.onclick=()=>nav(x.dataset.u));$("#suggestions").classList.add("open")}
-function bookmark(){const t=cur(),i=S.bookmarks.findIndex(x=>x.url===t.url);if(i>=0)S.bookmarks.splice(i,1);else S.bookmarks.unshift({url:t.url,title:t.title});save("bookmarks",S.bookmarks);update();bubble(i<0?"Bookmark added":"Removed from bookmarks",t.title)}
-function security(){const u=cur().url;$("#bubble").innerHTML=`<div class="bt">${I("security")} ${/^https:/.test(u)?"Connection is secure":"Connection is not secure"}</div><div class="bx"><b>${E(domain(u)||"This page")}</b><br><br>This Chromium-style page-info surface shows the security state of the embedded page. Permissions and storage remain controlled by the Controlled Frame partition.</div><div class="ba"><button class="secondary" id="site">Site settings</button><button id="done">Done</button></div>`;$("#bubble").style.right="150px";$("#bubble").style.top="84px";$("#bubble").classList.add("open");$("#done").onclick=closePopups;$("#site").onclick=()=>info("Site settings",domain(u))}
-function bubble(title,text){$("#bubble").innerHTML=`<div class="bt">${E(title)}</div><div class="bx">${E(text)}</div><div class="ba"><button id="bdone">Done</button></div>`;$("#bubble").style.right="150px";$("#bubble").style.top="84px";$("#bubble").classList.add("open");$("#bdone").onclick=closePopups}
-function modal(title,html,fn){$("#mt").textContent=title;$("#mb").innerHTML=html;$("#mb").onclick=fn||null;$("#modal").style.display="flex"}function info(t,m){modal(t,`<div style="white-space:pre-wrap;line-height:1.55;color:#d7d9dc">${E(m)}</div>`)}
-function bookmarks(){const r=S.bookmarks.map((b,i)=>`<div class="row" data-i="${i}">${I("bookmark")}<div class="rm"><div class="rt">${E(b.title)}</div><div class="rs">${E(b.url)}</div></div></div>`).join("")||'<div class="empty">No bookmarks yet.</div>';modal("Bookmarks and lists",r,e=>{const i=e.target.closest("[data-i]")?.dataset.i;if(i!=null){nav(S.bookmarks[i].url);$("#modal").style.display="none"}})}
-function history(){const r=S.history.map((h,i)=>`<div class="row" data-i="${i}">${I("history")}<div class="rm"><div class="rt">${E(h.title)}</div><div class="rs">${E(h.url)}</div></div></div>`).join("")||'<div class="empty">No history yet.</div>';modal("History",r,e=>{const i=e.target.closest("[data-i]")?.dataset.i;if(i!=null){nav(S.history[i].url);$("#modal").style.display="none"}})}
-function downloads(){const r=S.downloads.map(d=>`<div class="row">${I("download")}<div class="rm"><div class="rt">${E(d.name||d.url)}</div><div class="rs">${E(d.url)} · ${new Date(d.time).toLocaleString()}</div></div></div>`).join("")||'<div class="empty">No downloads yet.</div>';modal("Downloads",r)}
-function extensions(){modal("Extensions",`<div class="row">${I("extensions")}<div class="rm"><div class="rt">IWA browser tools</div><div class="rs">Chromium-style extension controls</div></div></div><div class="row">${I("extensions")}<div class="rm"><div class="rt">Manage extensions</div><div class="rs">Native Chrome extension installation requires privileged Chromium extension APIs.</div></div></div>`)}
-function settings(){modal("Settings",`<div class="row">${I("person")}<div class="rm"><div class="rt">You and Chromium</div><div class="rs">Profile and personalization</div></div></div><div class="row">${I("security")}<div class="rm"><div class="rt">Privacy and security</div><div class="rs">Clear data, permissions, and site settings</div></div></div><div class="row">${I("settings")}<div class="rm"><div class="rt">Appearance</div><div class="rs">Theme and toolbar controls</div></div></div>`)}
-function tabSearch(){modal("Search tabs",`<input id="tq" style="width:100%;height:40px;background:#202124;border:1px solid #5f6368;border-radius:9px;color:#e8eaed;padding:0 12px;outline:none" placeholder="Search tabs"><div id="tr" style="margin-top:10px"></div>`);const render=()=>{$("#tr").innerHTML=S.tabs.map((t,i)=>`<div class="row" data-i="${i}">${I("search")}<div class="rm"><div class="rt">${E(t.title)}</div><div class="rs">${E(t.url)}</div></div></div>`).join("");$$("#tr [data-i]").forEach(x=>x.onclick=()=>{activate(+x.dataset.i);$("#modal").style.display="none"})};$("#tq").oninput=render;render();$("#tq").focus()}
-function find(){const q=prompt("Find in page");if(q)cur().frame.executeScript({code:`window.find(${JSON.stringify(q)})`})}function printPage(){cur().frame.executeScript({code:"window.print()"})}function savePage(){S.downloads.unshift({name:(cur().title||"page")+".html",url:cur().url,time:Date.now()});save("downloads",S.downloads);info("Save page","The save-page request was recorded in the IWA download surface. Full browser file writing requires the host download API.")}async function clearData(){try{await cur().frame.clearData()}catch{}S.history=[];save("history",[]);info("Clear browsing data","Controlled Frame storage and browser-shell history were cleared.")}
-function permission(t,e){const p=document.createElement("div");p.className="perm";p.innerHTML=`<div class="permhead">${I("security")}<b>Allow ${E(e.permission||"permission")}?</b></div><div class="permsub">${E(domain(t.url))}</div><div class="actions"><button class="deny">Block</button><button class="allow">Allow</button></div>`;$("#perms").appendChild(p);p.querySelector(".deny").onclick=()=>{try{e.request.deny()}catch{}p.remove()};p.querySelector(".allow").onclick=()=>{try{e.request.allow()}catch{}p.remove()}}
-document.addEventListener("DOMContentLoaded",()=>{makeTab();$("#back").onclick=()=>go("back");$("#forward").onclick=()=>go("forward");$("#reload").onclick=()=>cur().frame.reload();$("#home").onclick=()=>nav(HOME);$("#star").onclick=bookmark;$("#security").onclick=security;$("#menub").onclick=showMenu;$("#downloads").onclick=downloads;$("#extensions").onclick=extensions;$("#profile").onclick=()=>info("Profile","Chromium profile\n\nPersistent Controlled Frame storage is enabled.");$("#tabsearch").onclick=tabSearch;$("#newtab").onclick=()=>makeTab();$("#mx").onclick=()=>$("#modal").style.display="none";$("#close").onclick=()=>window.close();$("#min").onclick=()=>info("Minimize","The IWA standard does not expose a portable minimize API; this control remains in the borderless window chrome.");$("#max").onclick=()=>info("Maximize","The IWA standard does not expose a portable maximize API; this control remains in the borderless window chrome.");
-$("#addr").addEventListener("focus",()=>{$("#omnibox").classList.add("focused");suggestions()});$("#addr").addEventListener("input",suggestions);$("#addr").addEventListener("keydown",e=>{if(e.key==="Enter"){nav(e.target.value);e.target.blur()}if(e.key==="Escape"){e.target.value=cur().url;e.target.blur();closePopups()}});
-document.addEventListener("click",e=>{if(!e.target.closest("#omnibox")&&!e.target.closest("#suggestions"))$("#suggestions").classList.remove("open");if(!e.target.closest("#ctx"))$("#ctx").classList.remove("open")});
-document.addEventListener("keydown",e=>{const m=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();if(m&&k==="l"){e.preventDefault();$("#addr").focus();$("#addr").select()}if(m&&k==="t"){e.preventDefault();makeTab()}if(m&&k==="w"){e.preventDefault();closeTab(S.active)}if(m&&e.shiftKey&&k==="t"){e.preventDefault();makeTab(S.history.find(x=>x.closed)?.url||HOME)}if(m&&k==="r"){e.preventDefault();cur().frame.reload()}if(m&&k==="d"){e.preventDefault();bookmark()}if(m&&k==="f"){e.preventDefault();find()}if(m&&k==="j"){e.preventDefault();downloads()}if(m&&k==="h"){e.preventDefault();history()}if(m&&k==="p"){e.preventDefault();printPage()}if(e.altKey&&e.key==="ArrowLeft"){e.preventDefault();go("back")}if(e.altKey&&e.key==="ArrowRight"){e.preventDefault();go("forward")}})});
+function filename(u){try{return decodeURIComponent(new URL(u).pathname.split('/').pop())||new URL(u).hostname}catch{return 'download'}}
+function closePopups(){['menu','ctx','bubble','suggestions'].forEach(id=>$('#'+id).classList.remove('open'));state.menuPage='main'}
+function setModal(open){$('#modal').style.display=open?'flex':'none'}
+function showModal(title,html,handler){$('#mt').textContent=title;$('#mb').innerHTML=html;$('#mb').onclick=handler||null;setModal(true)}
+function simpleInfo(title,text){showModal(title,`<div style="white-space:pre-wrap;line-height:1.55;color:#d7d9dc">${esc(text)}</div>`)}
+
+function createTab(url=HOME,activate=true){
+  const t={id:state.nextId++,url,title:'New Tab',frame:null,loading:false,pinned:false,muted:false};
+  state.tabs.push(t);
+  if(activate) state.active=state.tabs.length-1;
+  renderTabs(); mountFrame(t);
+  if(activate) activateTab(state.tabs.length-1);
+  return t;
+}
+function mountFrame(t){
+  const f=document.createElement('controlledframe');
+  f.className='frame'+(state.tabs[state.active]===t?' active':'');
+  f.setAttribute('allowfullscreen','');
+  if(!state.incognito) f.partition='persist:chromium';
+  f.src=t.url;
+  f.addEventListener('loadstart',()=>{t.loading=true;updateToolbar();renderTabs()});
+  f.addEventListener('loadcommit',()=>syncFrame(t,f));
+  f.addEventListener('loadstop',()=>syncFrame(t,f));
+  f.addEventListener('loadabort',e=>{t.loading=false; if(e?.url)t.url=e.url; updateToolbar();renderTabs()});
+  f.addEventListener('newwindow',e=>handleNewWindow(t,e));
+  f.addEventListener('permissionrequest',e=>handlePermission(t,e));
+  f.addEventListener('dialog',e=>handleDialog(e));
+  f.addEventListener('consolemessage',()=>{});
+  $('#frames').appendChild(f);t.frame=f;
+}
+function handleNewWindow(parent,e){
+  const url=e.targetUrl||HOME;
+  e.preventDefault();
+  const t=createTab(url,true);
+  try{ if(e.window?.attach && t.frame) e.window.attach(t.frame); }catch{}
+  return t;
+}
+async function syncFrame(t,f){
+  t.url=f.src||t.url;t.loading=false;
+  try{
+    const result=await f.executeScript({code:'document.title || location.hostname || location.href'});
+    const title=Array.isArray(result)?result[0]:result;
+    if(title) t.title=title;
+  }catch{t.title=domain(t.url)||'New Tab'}
+  if(/^https?:/i.test(t.url)) recordHistory(t);
+  updateToolbar();renderTabs();
+}
+function recordHistory(t){
+  if(!t.url||!domain(t.url))return;
+  const item={url:t.url,title:t.title||domain(t.url),time:Date.now()};
+  if(state.history[0]?.url===item.url)return;
+  state.history.unshift(item);state.history=state.history.slice(0,500);persist('history',state.history);
+}
+function renderTabs(){
+  const host=$('#tabs');host.innerHTML='';
+  state.tabs.forEach((t,i)=>{
+    const d=document.createElement('div');d.className='tab'+(i===state.active?' active':'')+(t.pinned?' pinned':'');d.draggable=true;d.dataset.index=i;
+    const fav=domain(t.url)?`<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain(t.url))}&sz=32" alt="">`:'<span>●</span>';
+    d.innerHTML=`<span class="favicon">${fav}</span><span class="title">${esc(t.title||'New Tab')}</span><button class="tabclose" aria-label="Close tab">${icon('close')}</button>`;
+    d.addEventListener('click',e=>{if(!e.target.closest('.tabclose'))activateTab(i)});
+    d.addEventListener('dblclick',e=>{if(!e.target.closest('.tabclose'))togglePin(i)});
+    d.querySelector('.tabclose').addEventListener('click',e=>{e.stopPropagation();closeTab(i)});
+    d.addEventListener('contextmenu',e=>{e.preventDefault();showTabContext(i,e.clientX,e.clientY)});
+    d.addEventListener('dragstart',e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/tab-index',String(i));d.classList.add('dragging')});
+    d.addEventListener('dragend',()=>{$$('.tab').forEach(x=>x.classList.remove('dragging','drop-target'))});
+    d.addEventListener('dragover',e=>{e.preventDefault();d.classList.add('drop-target')});
+    d.addEventListener('dragleave',()=>d.classList.remove('drop-target'));
+    d.addEventListener('drop',e=>{e.preventDefault();d.classList.remove('drop-target');const from=Number(e.dataTransfer.getData('text/tab-index'));if(Number.isInteger(from)&&from!==i)moveTab(from,i)});
+    host.appendChild(d);
+  });
+}
+function moveTab(from,to){
+  const [t]=state.tabs.splice(from,1);state.tabs.splice(to,0,t);if(state.active===from)state.active=to;else if(from<state.active&&to>=state.active)state.active--;else if(from>state.active&&to<=state.active)state.active++;renderTabs();activateTab(state.active)}
+function activateTab(i){if(!state.tabs[i])return;state.active=i;state.tabs.forEach((t,n)=>t.frame?.classList.toggle('active',n===i));renderTabs();updateToolbar();closePopups();}
+function closeTab(i){
+  const t=state.tabs[i];if(!t)return;
+  state.closed.unshift({url:t.url,title:t.title,time:Date.now()});state.closed=state.closed.slice(0,25);persist('closed',state.closed);
+  t.frame?.remove();state.tabs.splice(i,1);
+  if(!state.tabs.length){createTab(HOME,true);return}
+  if(state.active>i)state.active--;else if(state.active===i)state.active=Math.min(i,state.tabs.length-1);
+  activateTab(state.active);
+}
+function reopenClosed(){const x=state.closed.shift();persist('closed',state.closed);if(x)createTab(x.url,true)}
+function updateToolbar(){
+  const t=current();if(!t)return;
+  if(document.activeElement!==$('#addr'))$('#addr').value=t.url;
+  $('#reload').innerHTML=icon(t.loading?'close':'refresh');
+  $('#star').classList.toggle('saved',state.bookmarks.some(x=>x.url===t.url));
+  $('#back').disabled=false;$('#forward').disabled=false;
+}
+async function go(method){try{await current()?.frame?.[method]();}catch{}}
+function navigate(value){const u=normalize(value);const t=current();if(!t)return;t.url=u;t.frame.src=u;$('#addr').value=u;state.omniboxIndex=-1;$('#suggestions').classList.remove('open')}
+
+function menuButton(label,ic,fn,key='',disabled=false){
+  const b=document.createElement('button');b.className='mi';b.disabled=disabled;b.innerHTML=`${icon(ic)}<span>${esc(label)}</span>${key?`<span class="shortcut">${esc(key)}</span>`:''}`;b.onclick=()=>{if(!disabled)fn?.()};return b;
+}
+function menuSep(){const d=document.createElement('div');d.className='sep';return d}
+function showMainMenu(){
+  const p=$('#menu');state.menuPage='main';p.innerHTML=`
+    <div class="glow-header"><div class="glow-avatar"><img src="/icon.png" alt="Chromium"></div><div><div class="glow-title">${state.incognito?'Incognito':'Chromium'}</div><div class="glow-sub">${state.incognito?'Private browsing · this window':'Chromium IWA · WebUI toolbar'}</div></div></div>
+    <div class="menu-grid">
+      <div class="menu-card" id="menuNewTab">${icon('add')}<b>New tab</b><span>Ctrl+T</span></div>
+      <div class="menu-card" id="menuIncognito">${icon('incognito')}<b>New Incognito window</b><span>Ctrl+Shift+N</span></div>
+      <div class="menu-card" id="menuHistory">${icon('history')}<b>History</b><span>Ctrl+H</span></div>
+      <div class="menu-card" id="menuDownloads">${icon('download')}<b>Downloads</b><span>Ctrl+J</span></div>
+      <div class="menu-card" id="menuBookmarks">${icon('bookmark')}<b>Bookmarks and lists</b><span>Ctrl+Shift+O</span></div>
+      <div class="menu-card" id="menuExtensions">${icon('extensions')}<b>Extensions</b><span>Manage</span></div>
+    </div>`;
+  p.append(menuSep(),menuButton('New window','browser_tools',()=>window.open('/unframed/window.html','_blank'),'Ctrl+N'));
+  p.append(menuButton('Save and share','share',saveAndShare,'Ctrl+S'),menuButton('Find…','search',findInPage,'Ctrl+F'),menuButton('Print…','print',printPage,'Ctrl+P'),menuButton('Create QR code for this page','qr',showQR));
+  p.append(menuSep(),menuButton('More tools','settings',showMoreTools),menuButton('Settings','settings',showSettings),menuButton('Help','search',()=>simpleInfo('Help','Ctrl+L address bar\nCtrl+T new tab\nCtrl+W close tab\nCtrl+Shift+T reopen closed tab\nCtrl+D bookmark\nCtrl+F find\nCtrl+J downloads\nCtrl+H history\nCtrl+P print')),menuButton('About Chromium','security',()=>simpleInfo('About Chromium','Chromium IWA 1.2.0\n\nA borderless IWA browser shell using Chromium WebUI concepts and Controlled Frame.')));
+  $('#menuNewTab').onclick=()=>{createTab(HOME,true);closePopups()};$('#menuIncognito').onclick=()=>window.open('/unframed/window.html?incognito=1','_blank');$('#menuHistory').onclick=showHistory;$('#menuDownloads').onclick=showDownloads;$('#menuBookmarks').onclick=showBookmarks;$('#menuExtensions').onclick=showExtensions;
+  p.classList.add('open');
+}
+function showMoreTools(){
+  const p=$('#menu');p.innerHTML='';p.append(menuButton('Extensions','extensions',showExtensions),menuButton('Task manager','search',()=>simpleInfo('Task manager','Native Chromium process metrics require privileged browser APIs.')),menuButton('Developer tools','settings',()=>simpleInfo('Developer tools','DevTools is a privileged Chromium surface and cannot be embedded as a normal IWA page.')),menuSep(),menuButton('Clear browsing data…','settings',clearData),menuButton('Tab search','tabsearch',showTabSearch,'Ctrl+Shift+A'),menuButton('Create shortcut','add',()=>simpleInfo('Create shortcut','Installable shortcut metadata is supplied by the IWA manifest.')));p.classList.add('open');
+}
+function showTabContext(i,x,y){
+  const p=$('#ctx'),t=state.tabs[i];p.innerHTML=`<div class="ctx-title">${esc(t.title||t.url)}</div>`;
+  p.append(menuButton('New tab','add',()=>createTab(HOME,true)),menuButton('Reload','refresh',()=>t.frame?.reload()),menuButton('Duplicate','copy',()=>createTab(t.url,true)),menuButton(t.pinned?'Unpin tab':'Pin tab','bookmark',()=>togglePin(i)),menuButton(t.muted?'Unmute site':'Mute site','security',()=>{t.muted=!t.muted;renderTabs()}),menuSep(),menuButton('Move tab to new window','browser_tools',()=>window.open('/unframed/window.html?url='+encodeURIComponent(t.url),'_blank')),menuButton('Close tab','close',()=>closeTab(i),'Ctrl+W'),menuButton('Close other tabs','close',()=>closeOtherTabs(i)),menuButton('Reopen closed tab','history',reopenClosed,'Ctrl+Shift+T'));
+  p.style.left=Math.min(innerWidth-290,Math.max(5,x))+'px';p.style.top=Math.min(innerHeight-410,Math.max(38,y))+'px';p.classList.add('open');
+}
+function togglePin(i){const t=state.tabs[i];if(!t)return;t.pinned=!t.pinned;state.tabs.sort((a,b)=>Number(b.pinned)-Number(a.pinned));state.active=state.tabs.indexOf(t);renderTabs();updateToolbar()}
+function closeOtherTabs(i){const keep=state.tabs[i];state.tabs.forEach((t,n)=>{if(n!==i)t.frame?.remove()});state.tabs=[keep];state.active=0;activateTab(0)}
+
+function buildSuggestions(){
+  const q=$('#addr').value.trim().toLowerCase();if(!q){$('#suggestions').classList.remove('open');return}
+  const out=[],seen=new Set();const add=(text,url,ic,sub='')=>{if(!url||seen.has(url))return;seen.add(url);out.push({text,url,ic,sub})};
+  state.bookmarks.filter(x=>(x.title+' '+x.url).toLowerCase().includes(q)).slice(0,4).forEach(x=>add(x.title,x.url,'bookmark','Bookmark'));
+  state.history.filter(x=>(x.title+' '+x.url).toLowerCase().includes(q)).slice(0,5).forEach(x=>add(x.title,x.url,'history',x.url));
+  add($('#addr').value,normalize($('#addr').value),'search',/\s/.test(q)?'Search Google':'Go to '+normalize($('#addr').value));
+  const host=$('#suggestions');host.innerHTML=out.slice(0,8).map((x,i)=>`<div class="sug" data-index="${i}" data-url="${esc(x.url)}">${icon(x.ic)}<span class="sugmain">${esc(x.text)}</span><span class="sugsub">${esc(x.sub)}</span></div>`).join('');
+  $$('.sug').forEach(s=>s.onclick=()=>navigate(s.dataset.url));state.omniboxIndex=-1;host.classList.add('open');
+}
+function selectSuggestion(delta){const items=$$('.sug');if(!items.length)return;state.omniboxIndex=Math.max(-1,Math.min(items.length-1,state.omniboxIndex+delta));items.forEach((x,i)=>x.classList.toggle('selected',i===state.omniboxIndex));if(state.omniboxIndex>=0)$('#addr').value=items[state.omniboxIndex].dataset.url}
+
+function bookmark(){const t=current();if(!t)return;const i=state.bookmarks.findIndex(x=>x.url===t.url);if(i>=0){state.bookmarks.splice(i,1);bubble('Removed from bookmarks',t.title)}else{state.bookmarks.unshift({url:t.url,title:t.title});bubble('Bookmark added',t.title)}persist('bookmarks',state.bookmarks);updateToolbar()}
+function showSecurity(){const u=current().url;const secure=/^https:/i.test(u);$('#bubble').innerHTML=`<div class="bt">${icon('security')} ${secure?'Connection is secure':'Connection is not secure'}</div><div class="bx"><b>${esc(domain(u)||'This page')}</b><br><br>${secure?'The connection uses HTTPS.':'This page is not using HTTPS.'}<br><br>Controlled Frame keeps this site in its own browsing partition.</div><div class="ba"><button class="secondary" id="siteSettings">Site settings</button><button id="bubbleDone">Done</button></div>`;$('#bubble').style.right='155px';$('#bubble').style.top='82px';$('#bubble').classList.add('open');$('#bubbleDone').onclick=closePopups;$('#siteSettings').onclick=()=>simpleInfo('Site settings',domain(u)||u)}
+function bubble(title,text){$('#bubble').innerHTML=`<div class="bt">${esc(title)}</div><div class="bx">${esc(text)}</div><div class="ba"><button id="bubbleDone">Done</button></div>`;$('#bubble').style.right='155px';$('#bubble').style.top='82px';$('#bubble').classList.add('open');$('#bubbleDone').onclick=closePopups}
+function showBookmarks(){const html=state.bookmarks.map((b,i)=>`<div class="row" data-i="${i}">${icon('bookmark')}<div class="rm"><div class="rt">${esc(b.title)}</div><div class="rs">${esc(b.url)}</div></div></div>`).join('')||'<div class="empty">No bookmarks yet.</div>';showModal('Bookmarks and lists',html,e=>{const i=e.target.closest('[data-i]')?.dataset.i;if(i!=null){navigate(state.bookmarks[i].url);setModal(false)}})}
+function showHistory(){const html=state.history.map((h,i)=>`<div class="row" data-i="${i}">${icon('history')}<div class="rm"><div class="rt">${esc(h.title)}</div><div class="rs">${esc(h.url)}</div></div></div>`).join('')||'<div class="empty">No history yet.</div>';showModal('History',html,e=>{const i=e.target.closest('[data-i]')?.dataset.i;if(i!=null){navigate(state.history[i].url);setModal(false)}})}
+function showDownloads(){const html=state.downloads.map((d,i)=>`<div class="row" data-i="${i}">${icon('download')}<div class="rm"><div class="rt">${esc(d.name||filename(d.url))}</div><div class="rs">${esc(d.url)} · ${new Date(d.time).toLocaleString()}</div></div></div>`).join('')||'<div class="empty">No downloads yet.</div>';showModal('Downloads',html)}
+function showExtensions(){showModal('Extensions',`<div class="row">${icon('extensions')}<div class="rm"><div class="rt">IWA browser tools</div><div class="rs">Chromium-style extension container surface</div></div></div><div class="row">${icon('settings')}<div class="rm"><div class="rt">Manage extensions</div><div class="rs">Native Chrome extension installation and service-worker APIs require privileged Chromium extension support.</div></div></div>`)}
+function showSettings(){showModal('Settings',`<div class="row">${icon('person')}<div class="rm"><div class="rt">You and Chromium</div><div class="rs">Profile and personalization</div></div></div><div class="row">${icon('security')}<div class="rm"><div class="rt">Privacy and security</div><div class="rs">Clear browsing data, permissions, and site information</div></div></div><div class="row">${icon('settings')}<div class="rm"><div class="rt">Appearance</div><div class="rs">Toolbar Glow Up · WebUI Refresh 2026 · Rounded icons</div></div></div>`)}
+function showTabSearch(){showModal('Search tabs',`<input id="tabQuery" class="modal-input" placeholder="Search tabs"><div id="tabResults" style="margin-top:10px"></div>`);const render=()=>{$('#tabResults').innerHTML=state.tabs.map((t,i)=>({t,i})).filter(x=>{const q=$('#tabQuery').value.toLowerCase();return !q||(x.t.title+' '+x.t.url).toLowerCase().includes(q)}).map(x=>`<div class="row" data-i="${x.i}">${icon('search')}<div class="rm"><div class="rt">${esc(x.t.title)}</div><div class="rs">${esc(x.t.url)}</div></div></div>`).join('');$$('#tabResults [data-i]').forEach(r=>r.onclick=()=>{activateTab(+r.dataset.i);setModal(false)})};$('#tabQuery').oninput=render;render();$('#tabQuery').focus()}
+function showQR(){simpleInfo('Create QR code for this page',current().url)}
+function saveAndShare(){state.downloads.unshift({name:(current().title||'page')+'.html',url:current().url,time:Date.now(),state:'recorded'});state.downloads=state.downloads.slice(0,100);persist('downloads',state.downloads);showDownloads()}
+async function clearData(){try{await current()?.frame?.clearData()}catch{}state.history=[];persist('history',[]);state.downloads=[];persist('downloads',[]);simpleInfo('Clear browsing data','Controlled Frame storage and this IWA shell history were cleared.')}
+async function findInPage(){const q=await customPrompt('Find in page','Search this page');if(q)try{await current().frame.executeScript({code:`window.find(${JSON.stringify(q)})`})}catch{}}
+function printPage(){try{current().frame.executeScript({code:'window.print()'})}catch{}}
+async function customPrompt(title,label){return new Promise(resolve=>{showModal(title,`<div style="color:#bdc1c6;margin-bottom:8px">${esc(label)}</div><input id="promptInput" class="modal-input" autofocus><div class="ba"><button class="secondary" id="promptCancel">Cancel</button><button id="promptOk">OK</button></div>`);const finish=v=>{setModal(false);resolve(v)};$('#promptCancel').onclick=()=>finish('');$('#promptOk').onclick=()=>finish($('#promptInput').value);$('#promptInput').onkeydown=e=>{if(e.key==='Enter')finish(e.target.value);if(e.key==='Escape')finish('')}})}
+function handleDialog(e){const msg=e.messageText||'The page requested a dialog.';showModal('Page dialog',`<div style="white-space:pre-wrap;line-height:1.5">${esc(msg)}</div><div class="ba"><button id="dialogCancel" class="secondary">Cancel</button><button id="dialogOk">OK</button></div>`);$('#dialogCancel').onclick=()=>{e.dialog?.cancel();setModal(false)};$('#dialogOk').onclick=()=>{e.dialog?.ok();setModal(false)}}
+function handlePermission(t,e){
+  const p=document.createElement('div');p.className='perm';const permission=e.permission||'permission';
+  const isDownload=permission==='download';
+  p.innerHTML=`<div class="permhead">${icon(isDownload?'download':'security')}<b>${esc(isDownload?'Allow this site to download a file?':'Allow '+permission+'?')}</b></div><div class="permsub">${esc(domain(t.url))}${e.request?.url?' · '+esc(e.request.url):''}</div><div class="actions"><button class="deny">Block</button><button class="allow">Allow</button></div>`;
+  $('#perms').appendChild(p);p.querySelector('.deny').onclick=()=>{try{e.request?.deny()}catch{}p.remove()};p.querySelector('.allow').onclick=()=>{try{e.request?.allow()}catch{}if(isDownload){state.downloads.unshift({name:filename(e.request?.url||t.url),url:e.request?.url||t.url,time:Date.now(),state:'requested'});persist('downloads',state.downloads)}p.remove()};
+}
+
+/* Best-effort native window control compatibility. IWAs expose unframed drag regions but not a standard current-window maximize/minimize API. */
+async function toggleWindowState(){
+  state.windowMaximized=!state.windowMaximized;
+  const drag=$('.drag-square');
+  const restore=icon('restore'), max=icon('maximize');
+  drag.innerHTML=state.windowMaximized?restore:max;
+  try{
+    if(state.windowMaximized){window.resizeTo(screen.availWidth,screen.availHeight);window.moveTo(screen.availLeft,screen.availTop)}
+    else {window.resizeTo(Math.max(900,Math.round(screen.availWidth*.85)),Math.max(650,Math.round(screen.availHeight*.85)));window.moveTo(screen.availLeft+Math.round(screen.availWidth*.075),screen.availTop+Math.round(screen.availHeight*.075))}
+  }catch{}
+}
+
+function setup(){
+  createTab(initialUrl,true);
+  $('#back').onclick=()=>go('back');$('#forward').onclick=()=>go('forward');$('#reload').onclick=()=>current()?.frame?.reload();$('#home').onclick=()=>navigate(HOME);
+  $('#star').onclick=bookmark;$('#security').onclick=showSecurity;$('#menub').onclick=()=>{closePopups();showMainMenu()};$('#downloads').onclick=showDownloads;$('#extensions').onclick=showExtensions;$('#profile').onclick=()=>simpleInfo('Profile','Chromium\n\nPersistent Controlled Frame storage is enabled.');$('#tabsearch').onclick=showTabSearch;$('#newtab').onclick=()=>createTab(HOME,true);$('#mx').onclick=()=>setModal(false);$('#close').onclick=()=>window.close();$('.drag-square').onclick=toggleWindowState;
+  const addr=$('#addr');addr.addEventListener('focus',()=>{$('#omnibox').classList.add('omnibox-focused');buildSuggestions();addr.select()});addr.addEventListener('input',buildSuggestions);addr.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();selectSuggestion(1)}else if(e.key==='ArrowUp'){e.preventDefault();selectSuggestion(-1)}else if(e.key==='Enter'){e.preventDefault();navigate(addr.value);addr.blur()}else if(e.key==='Escape'){addr.value=current().url;addr.blur();closePopups()}});addr.addEventListener('blur',()=>setTimeout(()=>$('#omnibox').classList.remove('omnibox-focused'),120));
+  document.addEventListener('click',e=>{if(!e.target.closest('#omnibox')&&!e.target.closest('#suggestions'))$('#suggestions').classList.remove('open');if(!e.target.closest('#ctx'))$('#ctx').classList.remove('open')});
+  $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')setModal(false)});
+  document.addEventListener('keydown',e=>{
+    const m=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
+    if(m&&k==='l'){e.preventDefault();addr.focus();addr.select()}
+    else if(m&&k==='t'){e.preventDefault();createTab(HOME,true)}
+    else if(m&&k==='w'){e.preventDefault();closeTab(state.active)}
+    else if(m&&e.shiftKey&&k==='t'){e.preventDefault();reopenClosed()}
+    else if(m&&k==='r'){e.preventDefault();current()?.frame?.reload()}
+    else if(m&&k==='d'){e.preventDefault();bookmark()}
+    else if(m&&k==='f'){e.preventDefault();findInPage()}
+    else if(m&&k==='j'){e.preventDefault();showDownloads()}
+    else if(m&&k==='h'){e.preventDefault();showHistory()}
+    else if(m&&k==='p'){e.preventDefault();printPage()}
+    else if(m&&e.shiftKey&&k==='a'){e.preventDefault();showTabSearch()}
+    else if(e.altKey&&e.key==='ArrowLeft'){e.preventDefault();go('back')}
+    else if(e.altKey&&e.key==='ArrowRight'){e.preventDefault();go('forward')}
+  });
+  renderTabs();updateToolbar();
+}
+document.addEventListener('DOMContentLoaded',setup);

@@ -1,0 +1,18 @@
+{
+  "name": "chromium-iwa",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Chromium-style Isolated Web App browser shell based on the Khan IWA window architecture.",
+  "type": "module",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "sync-version": "node scripts/sync-version.mjs",
+    "generate-key": "node scripts/generate-key.mjs",
+    "build": "node scripts/build-iwa.mjs",
+    "build:bundle": "npm run build"
+  },
+  "devDependencies": {
+    "wbn": "0.0.9",
+    "wbn-sign": "0.3.1"
+  }
+}

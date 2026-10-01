@@ -1,0 +1,63 @@
+name: Build Chromium IWA
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Restore persistent IWA signing key
+        shell: bash
+        env:
+          IWA_PRIVATE_KEY: ${{ secrets.IWA_PRIVATE_KEY }}
+        run: |
+          test -n "$IWA_PRIVATE_KEY" || { echo "Missing IWA_PRIVATE_KEY GitHub secret. This key must remain stable across releases."; exit 1; }
+          printf '%s\n' "$IWA_PRIVATE_KEY" > chromium_private_key.pem
+          chmod 600 chromium_private_key.pem
+
+      - name: Sync package version into manifest and update manifest
+        run: npm run sync-version
+
+      - name: Build signed Web Bundle
+        run: npm run build:bundle
+
+      - name: Verify signed bundle
+        run: npx --yes wbn-sign info chromium.swbn
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-iwa-${{ github.sha }}
+          path: |
+            chromium.swbn
+            unsigned.wbn
+            update_manifest.json
+            src/.well-known/manifest.webmanifest
+
+      - name: Create GitHub release for version
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Chromium IWA ${VERSION}" --generate-notes
+          gh release upload "$TAG" chromium.swbn update_manifest.json --clobber
