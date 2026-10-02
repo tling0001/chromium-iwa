@@ -64,3 +64,9 @@ The implementation was based on the current Chromium source concepts for:
 - `chrome/app/vector_icons/` — Chromium vector-icon vocabulary.
 
 See `FEATURE_MAPPING.md` for the mapping from Chromium features to the IWA implementation.
+
+
+### v4 fixes
+- Icons use an inline SVG sprite so IWA rendering does not depend on external SVG `<use>` references.
+- Window close control follows the Khan IWA control implementation and explicitly uses a no-drag region.
+- Maximize/restore control uses the same 32px Khan drag-square geometry.

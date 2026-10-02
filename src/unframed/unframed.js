@@ -17,16 +17,26 @@ const state = {
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const icon = n => `<svg aria-hidden="true"><use href="/assets/icons.svg#${n}"></use></svg>`;
+const icon = n => `<svg aria-hidden="true" viewBox="0 0 24 24"><use href="#${n}"></use></svg>`;
 const persist = (k,v) => localStorage.setItem(STORAGE+k, JSON.stringify(v));
 const current = () => state.tabs[state.active];
 function domain(u){try{return new URL(u).hostname}catch{return ''}}
 function origin(u){try{return new URL(u).origin}catch{return ''}}
 function normalize(value){
-  const v=String(value||'').trim();
+  let v=String(value??'').trim();
   if(!v) return HOME;
-  if(/^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
-  if(/^[\w.-]+\.[a-z]{2,}(?:[/:?#].*)?$/i.test(v)) return 'https://'+v;
+  // Accept the URL forms users normally type into Chrome's omnibox.
+  if(/^https?:\/\//i.test(v) || /^data:/i.test(v)) return v;
+  if(/^localhost(?::\d+)?(?:[/?#].*)?$/i.test(v) || /^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:[/?#].*)?$/.test(v)) return 'http://'+v;
+  if(/^[a-z][a-z0-9+.-]*:/i.test(v)) {
+    // Controlled Frame is a web-content surface; unsupported browser schemes
+    // are treated as searches instead of producing a dead page.
+    const scheme=v.match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+    if(scheme==='http'||scheme==='https'||scheme==='data') return v;
+    return SEARCH+encodeURIComponent(v);
+  }
+  if(/^(?:www\.)?[\w.-]+\.[a-z]{2,}(?::\d+)?(?:[/:?#].*)?$/i.test(v)) return 'https://'+v;
+  if(/^\[[0-9a-f:]+\](?::\d+)?(?:[/?#].*)?$/i.test(v)) return 'http://'+v;
   return SEARCH+encodeURIComponent(v);
 }
 function filename(u){try{return decodeURIComponent(new URL(u).pathname.split('/').pop())||new URL(u).hostname}catch{return 'download'}}
@@ -47,12 +57,30 @@ function mountFrame(t){
   const f=document.createElement('controlledframe');
   f.className='frame'+(state.tabs[state.active]===t?' active':'');
   f.setAttribute('allowfullscreen','');
+  f.setAttribute('allowpopups','');
   if(!state.incognito) f.partition='persist:chromium';
+  // Set both the property and content attribute. This makes navigation work
+  // across Controlled Frame implementations that initialize one before the other.
   f.src=t.url;
-  f.addEventListener('loadstart',()=>{t.loading=true;updateToolbar();renderTabs()});
-  f.addEventListener('loadcommit',()=>syncFrame(t,f));
-  f.addEventListener('loadstop',()=>syncFrame(t,f));
-  f.addEventListener('loadabort',e=>{t.loading=false; if(e?.url)t.url=e.url; updateToolbar();renderTabs()});
+  f.setAttribute('src',t.url);
+  f.addEventListener('loadstart',e=>{
+    t.loading=true;
+    if(e?.url && /^https?:/i.test(e.url)) t.url=e.url;
+    updateToolbar();renderTabs();
+  });
+  f.addEventListener('loadcommit',e=>{
+    if(e?.url) t.url=e.url;
+    syncFrame(t,f);
+  });
+  f.addEventListener('loadstop',e=>{
+    if(e?.url) t.url=e.url;
+    syncFrame(t,f);
+  });
+  f.addEventListener('loadabort',e=>{
+    t.loading=false;
+    if(e?.url)t.url=e.url;
+    updateToolbar();renderTabs();
+  });
   f.addEventListener('newwindow',e=>handleNewWindow(t,e));
   f.addEventListener('permissionrequest',e=>handlePermission(t,e));
   f.addEventListener('dialog',e=>handleDialog(e));
@@ -120,7 +148,25 @@ function updateToolbar(){
   $('#back').disabled=false;$('#forward').disabled=false;
 }
 async function go(method){try{await current()?.frame?.[method]();}catch{}}
-function navigate(value){const u=normalize(value);const t=current();if(!t)return;t.url=u;t.frame.src=u;$('#addr').value=u;state.omniboxIndex=-1;$('#suggestions').classList.remove('open')}
+function navigate(value){
+  const u=normalize(value);
+  const t=current();
+  if(!t || !t.frame) return;
+  t.url=u;
+  t.loading=true;
+  try {
+    t.frame.src=u;
+    t.frame.setAttribute('src',u);
+  } catch {
+    t.loading=false;
+    bubble('Unable to open this address',u);
+  }
+  $('#addr').value=u;
+  state.omniboxIndex=-1;
+  $('#suggestions').classList.remove('open');
+  updateToolbar();
+  renderTabs();
+}
 
 function menuButton(label,ic,fn,key='',disabled=false){
   const b=document.createElement('button');b.className='mi';b.disabled=disabled;b.innerHTML=`${icon(ic)}<span>${esc(label)}</span>${key?`<span class="shortcut">${esc(key)}</span>`:''}`;b.onclick=()=>{if(!disabled)fn?.()};return b;
@@ -200,10 +246,31 @@ async function toggleWindowState(){
   }catch{}
 }
 
+function closeIwaWindow(e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  try{ window.close(); }catch{}
+}
+
+function bindWindowControls(){
+  const closeBtn=$('#close');
+  if(closeBtn){
+    closeBtn.setAttribute('app-region','no-drag');
+    closeBtn.style.pointerEvents='auto';
+    closeBtn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();},{passive:false});
+    closeBtn.addEventListener('click',closeIwaWindow);
+  }
+  const stateBtn=$('#window-state');
+  if(stateBtn){
+    stateBtn.setAttribute('app-region','drag');
+    stateBtn.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();toggleWindowState();});
+    stateBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();toggleWindowState();});
+  }
+}
+
 function setup(){
   createTab(initialUrl,true);
   $('#back').onclick=()=>go('back');$('#forward').onclick=()=>go('forward');$('#reload').onclick=()=>current()?.frame?.reload();$('#home').onclick=()=>navigate(HOME);
-  $('#star').onclick=bookmark;$('#security').onclick=showSecurity;$('#menub').onclick=()=>{closePopups();showMainMenu()};$('#downloads').onclick=showDownloads;$('#extensions').onclick=showExtensions;$('#profile').onclick=()=>simpleInfo('Profile','Chromium\n\nPersistent Controlled Frame storage is enabled.');$('#tabsearch').onclick=showTabSearch;$('#newtab').onclick=()=>createTab(HOME,true);$('#mx').onclick=()=>setModal(false);$('#close').onclick=()=>window.close();$('.drag-square').onclick=toggleWindowState;
+  $('#star').onclick=bookmark;$('#security').onclick=showSecurity;$('#menub').onclick=()=>{closePopups();showMainMenu()};$('#downloads').onclick=showDownloads;$('#extensions').onclick=showExtensions;$('#profile').onclick=()=>simpleInfo('Profile','Chromium\n\nPersistent Controlled Frame storage is enabled.');$('#tabsearch').onclick=showTabSearch;$('#newtab').onclick=()=>createTab(HOME,true);$('#mx').onclick=()=>setModal(false);bindWindowControls();
   const addr=$('#addr');addr.addEventListener('focus',()=>{$('#omnibox').classList.add('omnibox-focused');buildSuggestions();addr.select()});addr.addEventListener('input',buildSuggestions);addr.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();selectSuggestion(1)}else if(e.key==='ArrowUp'){e.preventDefault();selectSuggestion(-1)}else if(e.key==='Enter'){e.preventDefault();navigate(addr.value);addr.blur()}else if(e.key==='Escape'){addr.value=current().url;addr.blur();closePopups()}});addr.addEventListener('blur',()=>setTimeout(()=>$('#omnibox').classList.remove('omnibox-focused'),120));
   document.addEventListener('click',e=>{if(!e.target.closest('#omnibox')&&!e.target.closest('#suggestions'))$('#suggestions').classList.remove('open');if(!e.target.closest('#ctx'))$('#ctx').classList.remove('open')});
   $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')setModal(false)});
