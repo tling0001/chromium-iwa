@@ -185,7 +185,7 @@ function showMainMenu(){
     </div>`;
   p.append(menuSep(),menuButton('New window','browser_tools',()=>window.open('/unframed/window.html','_blank'),'Ctrl+N'));
   p.append(menuButton('Save and share','share',saveAndShare,'Ctrl+S'),menuButton('Find…','search',findInPage,'Ctrl+F'),menuButton('Print…','print',printPage,'Ctrl+P'),menuButton('Create QR code for this page','qr',showQR));
-  p.append(menuSep(),menuButton('More tools','settings',showMoreTools),menuButton('Settings','settings',showSettings),menuButton('Help','search',()=>simpleInfo('Help','Ctrl+L address bar\nCtrl+T new tab\nCtrl+W close tab\nCtrl+Shift+T reopen closed tab\nCtrl+D bookmark\nCtrl+F find\nCtrl+J downloads\nCtrl+H history\nCtrl+P print')),menuButton('About Chromium','security',()=>simpleInfo('About Chromium','Chromium IWA 1.2.0\n\nA borderless IWA browser shell using Chromium WebUI concepts and Controlled Frame.')));
+  p.append(menuSep(),menuButton('More tools','settings',showMoreTools),menuButton('Settings','settings',showSettings),menuButton('Help','search',()=>simpleInfo('Help','Ctrl+L address bar\nCtrl+T new tab\nCtrl+W close tab\nCtrl+Shift+T reopen closed tab\nCtrl+D bookmark\nCtrl+F find\nCtrl+J downloads\nCtrl+H history\nCtrl+P print')),menuButton('About Chromium','security',()=>simpleInfo('About Chromium','Chromium IWA 1.3.0\n\nA borderless IWA browser shell using Chromium WebUI concepts and Controlled Frame.')));
   $('#menuNewTab').onclick=()=>{createTab(HOME,true);closePopups()};$('#menuIncognito').onclick=()=>window.open('/unframed/window.html?incognito=1','_blank');$('#menuHistory').onclick=showHistory;$('#menuDownloads').onclick=showDownloads;$('#menuBookmarks').onclick=showBookmarks;$('#menuExtensions').onclick=showExtensions;
   p.classList.add('open');
 }
